@@ -7,9 +7,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 visitedDomains = set()
 
 def find_email_address2(domain):
-    #print("visiting: "+domain)
+    #if the print stays here it prints before the check
     if domain in visitedDomains:
         return
+    #print("visiting: "+domain)
     with closing(Firefox()) as browser:
         browser.get('http://'+domain)
         page_source = browser.page_source

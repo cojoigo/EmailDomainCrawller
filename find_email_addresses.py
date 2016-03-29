@@ -10,8 +10,7 @@ def find_email_addresses(domain):
     if resp.status_code != 200:
         raise ApiError('GET for domain failed')
     for item in resp.json()["emails"]:
-        for domain in item["sources"]:
-            domains.add(domain["domain"])
+        domains.add(item["value"])
     for i in domains:
         print(i)
 
