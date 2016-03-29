@@ -1,3 +1,4 @@
+from selenium import webdriver
 import sys, re, urllib
 from bs4 import BeautifulSoup
 from contextlib import closing
@@ -18,14 +19,18 @@ def find_email_address2(domain):
         return
     o = urlparse('http://'+domain)
     #verify we stay in domains that match the input netlocation
-    #just stay within the domain we are given and navigate down from there
     if originDomain != o.netloc:
         passedDomains.add(domain)
         return
     print("visiting: "+domain)
-    with closing(Firefox()) as browser:
-        browser.get('http://'+domain)
-        page_source = browser.page_source
+    driver = webdriver.PhantomJS()
+    driver.set_window_size(1120, 550)
+    driver.get('http://'+domain)
+    #print(driver.current_url)
+    #click on link
+    #driver.find_element_by_css_selector("button[ng-click *= 'changeRoute']").click()
+    #print(driver.current_url)
+    page_source = driver.page_source
     soup = BeautifulSoup(page_source, "lxml")
     #find email addresses on page
     domains = check_page(soup)
@@ -34,9 +39,6 @@ def find_email_address2(domain):
         foundEmails.add(i)
     #find links in page
     links = find_links(soup, domain)
-    #should mean drive wont fill up as fast
-    del page_source
-    del soup
     for j in set(links):
         find_email_address2(j)
 
@@ -66,6 +68,13 @@ def find_links(document, domain):
             retLinks.add(domain+i)
             #prevents infinite looping between pages ie /product/about/product/about
             visitedDomains.add(i)
+    #could take these ng-clicks to run in javascript / click
+    clicks = re.findall('''ng-click=["']changeRoute\(['](.[^"']+)[']\)''', str(document))
+    for i in clicks:
+        i = originDomain+'/'+i
+        if i in retLinks:
+            continue
+        retLinks.add(i)
     return retLinks
 
 
@@ -76,4 +85,14 @@ if __name__ == "__main__":
     else:
         originDomain = sys.argv[1]
         find_email_address2(sys.argv[1])
-        print(foundEmails)
+        for i in foundEmails:
+            print(i)
+
+
+
+
+
+
+
+
+
