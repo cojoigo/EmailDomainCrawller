@@ -1,35 +1,26 @@
-from selenium import webdriver
-import sys, re, urllib
+import sys, re, time
 from bs4 import BeautifulSoup
-from contextlib import closing
-from selenium.webdriver import Firefox
-from selenium.webdriver.support.ui import WebDriverWait
 from urlparse import urlparse
+from selenium import webdriver
 
 visitedDomains = set()
-passedDomains = set()
 foundEmails = set()
+clickedLinks = set()
 originDomain = ""
 
-def find_email_address2(domain):
-    #if the print stays here it prints before the check
+def find_email_address2(domain, visitedPages):
+    visitedPages -= 1
+    domain = 'http://'+domain
     if domain in visitedDomains:
         return
-    if domain in passedDomains:
-        return
-    o = urlparse('http://'+domain)
+    o = urlparse(domain)
     #verify we stay in domains that match the input netlocation
-    if originDomain != o.netloc:
-        passedDomains.add(domain)
+    if originDomain not in o.netloc:
         return
     print("visiting: "+domain)
     driver = webdriver.PhantomJS()
-    driver.set_window_size(1120, 550)
-    driver.get('http://'+domain)
-    #print(driver.current_url)
-    #click on link
-    #driver.find_element_by_css_selector("button[ng-click *= 'changeRoute']").click()
-    #print(driver.current_url)
+    driver.set_window_size(1124, 850)
+    driver.get(domain)
     page_source = driver.page_source
     soup = BeautifulSoup(page_source, "lxml")
     #find email addresses on page
@@ -39,8 +30,39 @@ def find_email_address2(domain):
         foundEmails.add(i)
     #find links in page
     links = find_links(soup, domain)
-    for j in set(links):
-        find_email_address2(j)
+
+    #click on link
+    spans = driver.execute_script("return document.querySelectorAll('span')");
+    ngClicks = set()
+    for i in spans:
+        if i.get_attribute('ng-click'):
+            ngClicks.add(i)
+    for i in ngClicks:
+        if i not in clickedLinks:
+            clickedLinks.add(i.get_attribute('ng-click'))
+            navigate(driver, i)
+
+    #check recursion
+    if visitedPages == 0:
+        return
+    for j in sorted(set(links)):
+        find_email_address2(j, visitedPages)
+
+def navigate(driver, i):
+    driver.execute_script("arguments[0].click();", i)
+    time.sleep(2)
+    #wait 2s for the page to load
+    print("Navigated to "+driver.current_url)
+    page_source = driver.page_source
+    soup = BeautifulSoup(page_source, "lxml")
+    #find email addresses on page
+    domains = check_page(soup)
+    visitedDomains.add(driver.current_url)
+    for i in set(domains):
+        foundEmails.add(i)
+    #find links in page
+    links = find_links(soup, driver.current_url.strip('http://'))
+    return
 
 def check_page(document):
     email_reg = r"[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+"
@@ -59,40 +81,22 @@ def find_links(document, domain):
             if 'mailto:' in i:
                 continue
             retLinks.add(i)
-        if re.match("^\/[a-zA-Z0-9_-]{1,10}", i):
-            if i in visitedDomains:
-                continue
-            #regex didn't want to cooperate here
-            if '.' in i:
-                continue
-            retLinks.add(domain+i)
-            #prevents infinite looping between pages ie /product/about/product/about
-            visitedDomains.add(i)
-    #could take these ng-clicks to run in javascript / click
-    clicks = re.findall('''ng-click=["']changeRoute\(['](.[^"']+)[']\)''', str(document))
-    for i in clicks:
-        i = originDomain+'/'+i
-        if i in retLinks:
-            continue
-        retLinks.add(i)
     return retLinks
-
 
 #run as command line application
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Please provide a domain only")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Please provide a domain name, OPTIONAL and recursion depth")
     else:
+        if len(sys.argv) == 3:
+            recurseDepth = int(sys.argv[2])
+        else:
+            recurseDepth = 1
         originDomain = sys.argv[1]
-        find_email_address2(sys.argv[1])
+        if recurseDepth < 1:
+            recurseDepth = 1
+        print("Searching domain: "+originDomain+" with recursion depth: "+str(recurseDepth))
+        find_email_address2(originDomain, recurseDepth)
+        print("Found Emails: ")
         for i in foundEmails:
             print(i)
-
-
-
-
-
-
-
-
-
